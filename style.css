@@ -1,0 +1,42 @@
+body
+{
+    color: #cacaca;
+    background-color: #101820;
+    font-family: verdana;
+    text-align: center;
+}
+
+td, th
+{
+    border: 1px solid #cacaca;
+    padding: 10px;
+}
+
+th
+{
+    background-color: #182028
+}
+
+table
+{
+    border-collapse: collapse;
+    margin: auto;
+}
+
+a
+{
+    color: #0066ff;
+    text-decoration: none;
+}
+
+a:hover
+{
+    text-decoration: underline;
+    color: #cc8800;
+}
+
+footer
+{
+    font-size: 0.8em;
+    margin-top: 30px;
+}
