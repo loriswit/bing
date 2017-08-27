@@ -54,7 +54,6 @@ class Bing
             }
             
             items.toYaml(filenameOut);
-            ItemNameList.checkYaml(filenameOut);
         }
         catch(Exception e)
         {

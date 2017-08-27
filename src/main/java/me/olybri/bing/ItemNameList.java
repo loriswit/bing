@@ -3,9 +3,6 @@ package me.olybri.bing;// Created by Loris Witschard on 8/27/2017.
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 import org.bukkit.Material;
-import org.bukkit.configuration.InvalidConfigurationException;
-import org.bukkit.configuration.file.FileConfiguration;
-import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -15,23 +12,15 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * List containing item names.
  */
 class ItemNameList
 {
-    private List<ItemData> itemDataList;
-    
-    private static class ItemData
-    {
-        int type = 0;
-        int meta = 0;
-        String name = "";
-        String text_type = "";
-    }
-    
     /**
      * Exception thrown if an item does not match any of the defined material.
      */
@@ -46,7 +35,7 @@ class ItemNameList
     /**
      * Constructs an item name list.
      */
-    ItemNameList()
+    public ItemNameList()
     {
     }
     
@@ -54,9 +43,10 @@ class ItemNameList
      * Constructs an item name list and load a JSON file.
      *
      * @param filename The JSON input filename
-     * @throws IOException if the JSON file cannot be read
+     * @throws IOException           if the JSON file cannot be read
+     * @throws ItemNotFoundException if an item does not match any of the defined material
      */
-    ItemNameList(String filename) throws IOException
+    public ItemNameList(String filename) throws IOException, ItemNotFoundException
     {
         load(filename);
     }
@@ -65,67 +55,25 @@ class ItemNameList
      * Load a JSON file containing items names.
      *
      * @param filename The JSON input filename
-     * @throws IOException if the JSON file cannot be read
+     * @throws IOException           if the JSON file cannot be read
+     * @throws ItemNotFoundException if an item does not match any of the defined material
      */
-    public void load(String filename) throws IOException
+    public void load(String filename) throws IOException, ItemNotFoundException
     {
         System.out.print("Parsing JSON file... ");
         Path filePath = Paths.get(filename);
         String content = new String(Files.readAllBytes(filePath), StandardCharsets.UTF_8);
         
         Type type = new TypeToken<List<ItemData>>() {}.getType();
-        itemDataList = new Gson().fromJson(content, type);
+        List<ItemData> itemDataList = new Gson().fromJson(content, type);
         System.out.println("Done!");
-    }
-    
-    /**
-     * Write the item names to a YAML file.
-     *
-     * @param filename The YAML output filename
-     * @throws IOException           if the YAML file cannot be written
-     * @throws ItemNotFoundException if an item does not match any of the defined material
-     */
-    public void toYaml(String filename) throws IOException, ItemNotFoundException
-    {
-        System.out.print("Generating item list... ");
-        BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
-        writer.write("# Bukkit Item Names\n");
-        writer.write("# Generated with bing (https://github.com/olybri/bing)\n\n");
-        writer.write("version: " + Bing.VERSION + "\n\n");
         
-        ItemData previous = null;
+        System.out.print("Generating item list... ");
         for(ItemData itemData : itemDataList)
         {
-            switch(itemData.type)
-            {
-                case 37: // insert block 36
-                    writer.write("\nPISTON_MOVING_PIECE:\n  0: Piston Extension\n");
-                    break;
-                
-                case 383: // only use generic name
-                    if(itemData.meta == 4)
-                        writer.write("\nMONSTER_EGG:\n  0: Spawn Egg\n");
-                    continue;
-                
-                case 427: // insert block 426
-                    writer.write("\nEND_CRYSTAL:\n  0: End Crystal\n");
-                    break;
-                
-                case 2256: // insert block 453
-                    writer.write("\nKNOWLEDGE_BOOK:\n  0: Knowledge Book\n");
-            }
-            
-            if(previous != null && previous.type != itemData.type)
-                writer.newLine();
-            
-            if(previous == null || previous.type != itemData.type)
-            {
-                Material mat = Material.getMaterial(itemData.type);
-                if(mat == null)
-                    throw new ItemNotFoundException(itemData);
-                else
-                    writer.write(mat.name() + ":" + "\n");
-            }
+            Material material = Material.getMaterial(itemData.type);
+            if(material == null)
+                throw new ItemNotFoundException(itemData);
             
             String name = itemData.name
                 .replace("Hardened Clay", "Terracotta")
@@ -140,48 +88,82 @@ class ItemNameList
                 .replace("Redstone Lamp (inactive)", "Redstone Lamp")
                 .replace("Redstone Torch (on)", "Redstone Torch");
             
-            writer.write("  " + itemData.meta + ": " + name + "\n");
-            
-            previous = itemData;
+            addName(material, itemData.meta, name);
         }
-        System.out.println("Done!");
         
-        writer.close();
+        names.remove(Material.MONSTER_EGG);
+        
+        // add missing names
+        addName(Material.PISTON_MOVING_PIECE, 0, "Piston Extension");
+        addName(Material.MONSTER_EGG, 0, "Spawn Egg");
+        addName(Material.END_CRYSTAL, 0, "End Crystal");
+        addName(Material.KNOWLEDGE_BOOK, 0, "Knowledge Book");
+        
+        System.out.println("Done!");
     }
     
     /**
-     * Check if a YAML file contains every materials.
+     * Write the item names to a YAML file.
      *
-     * @param filename The YAML input filename
-     * @throws IOException                   if the YAML file cannot be read
-     * @throws InvalidConfigurationException if the YAML file is ill-formed
+     * @param filename The YAML output filename
+     * @throws IOException if the YAML file cannot be written
      */
-    public static void checkYaml(String filename) throws IOException, InvalidConfigurationException
+    public void toYaml(String filename) throws IOException
     {
-        System.out.print("Checking item list... ");
-        FileConfiguration file = new YamlConfiguration();
-        file.load(filename);
+        System.out.print("Writing to YAML file... ");
         
-        int count = 0;
-        boolean success = true;
+        BufferedWriter writer = new BufferedWriter(new FileWriter(filename));
+        writer.write("# Bukkit Item Names\n");
+        writer.write("# Generated with bing (https://github.com/olybri/bing)\n\n");
+        writer.write("version: " + Bing.VERSION + "\n");
+        
+        boolean missing = false;
         for(Material material : Material.values())
         {
-            if(file.getString(material.name() + ".0") == null)
+            Map<Integer, String> materialNames = names.get(material);
+            if(materialNames == null)
             {
-                if(success)
+                if(!missing)
                 {
                     System.out.println();
-                    success = false;
+                    missing = true;
                 }
                 System.out.println("\033[33mMissing item\033[0m: "
                     + material.name() + " (id=" + material.getId() + ")");
+                continue;
             }
-            else
-                ++count;
+            
+            writer.write("\n" + material.name() + ":\n");
+            
+            for(Map.Entry<Integer, String> name : materialNames.entrySet())
+                writer.write("  " + name.getKey() + ": " + name.getValue() + "\n");
         }
-        if(success)
-            System.out.println("Done! (" + count + "/" + Material.values().length + ")");
-        else
-            System.out.println("Failed! (" + count + "/" + Material.values().length + ")");
+        
+        writer.close();
+        
+        System.out.println("Done!");
+    }
+    
+    /**
+     * Adds a name to the list.
+     *
+     * @param material The item material
+     * @param meta     The item meta
+     * @param name     The item name
+     */
+    private void addName(Material material, int meta, String name)
+    {
+        names.putIfAbsent(material, new HashMap<>());
+        names.get(material).put(meta, name);
+    }
+    
+    private Map<Material, Map<Integer, String>> names = new HashMap<>();
+    
+    private static class ItemData
+    {
+        int type = 0;
+        int meta = 0;
+        String name = "";
+        String text_type = "";
     }
 }
