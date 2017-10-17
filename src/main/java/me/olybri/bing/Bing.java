@@ -81,18 +81,18 @@ class Bing
                 
                 System.out.print("Extracting icon list... ");
                 ZipFile zipFile = new ZipFile(inputFile);
-                zipFile.extractAll("items");
+                zipFile.extractAll("icons");
                 inputFile.delete();
                 System.out.println("Done!");
                 
                 System.out.print("Renaming icon files... ");
-                File folder = new File("items");
+                File folder = new File("icons");
                 for(File file : folder.listFiles())
                 {
                     String[] id = file.getName().split("[-.]");
                     Material material = Material.getMaterial(Integer.parseInt(id[0]));
                     short meta = Short.parseShort(id[1]);
-                    File newFile = new File("items/" + material.name() + "-" + meta + ".png");
+                    File newFile = new File("icons/" + material.name() + "-" + meta + ".png");
                     file.renameTo(newFile);
                 }
                 System.out.println("Done!");
